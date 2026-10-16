@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOCCA PRIME - Totem</title>
+    <style>
+        * { box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { margin: 0; background: #1a1a1a; color: #fff; }
+        #app { max-width: 800px; margin: 0 auto; padding: 20px 20px 40px; min-height: 100vh; }
+        .tela { display: none; }
+        .tela.ativa { display: block; }
+        h1 { text-align: center; font-size: 48px; margin: 40px 0 10px; }
+        h2 { text-align: center; font-size: 32px; }
+        .sub-titulo { text-align: center; opacity: .7; font-size: 20px; }
+        button { border: none; border-radius: 14px; background: #c8102e; color: #fff; font-size: 24px; padding: 22px; cursor: pointer; }
+        button:active { opacity: .8; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        button.sec { background: #555; }
+        button.ok { background: #2e7d32; }
+        .grande { display: block; width: 100%; margin: 14px 0; text-align: left; }
+        .grande small { display: block; font-size: 16px; font-weight: normal; opacity: .85; margin-top: 6px; }
+        .centro { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-top: 60px; }
+        .centro button { width: 100%; }
+        .cancelar { position: fixed; top: 12px; right: 12px; z-index: 5; display: none; font-size: 16px; padding: 10px 16px; background: #444; }
+        #aviso { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #b71c1c; padding: 14px 22px; border-radius: 10px; font-size: 18px; display: none; z-index: 20; max-width: 90%; text-align: center; }
+        .card { display: flex; gap: 14px; background: #2b2b2b; border-radius: 14px; padding: 12px; margin: 14px 0; align-items: center; }
+        .foto { position: relative; width: 130px; height: 110px; flex-shrink: 0; background: #444; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 42px; overflow: hidden; }
+        .foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .info { flex: 1; }
+        .info h3 { margin: 0 0 6px; font-size: 22px; }
+        .info p { margin: 0 0 8px; opacity: .75; font-size: 15px; }
+        .preco { color: #ffca28; font-size: 22px; }
+        .card button { font-size: 18px; padding: 14px 18px; }
+        .barra-carrinho { margin-top: 20px; width: 100%; background: #1e88e5; }
+        .linha { display: flex; align-items: center; gap: 10px; background: #2b2b2b; border-radius: 12px; padding: 12px; margin: 10px 0; }
+        .linha .nome { flex: 1; }
+        .linha .nome small { display: block; opacity: .7; font-size: 14px; margin-top: 4px; }
+        .qtd { display: flex; align-items: center; gap: 10px; font-size: 22px; }
+        .mini { font-size: 22px; padding: 8px 14px; border-radius: 10px; }
+        .remover { background: #555; }
+        .total { text-align: right; font-size: 30px; margin: 20px 0; color: #ffca28; }
+        .vazio { text-align: center; opacity: .7; font-size: 20px; margin: 30px 0; }
+        .acoes { display: grid; gap: 12px; margin-top: 10px; }
+        .senha { text-align: center; font-size: 110px; color: #ffca28; margin: 10px 0; }
+        .resumo { background: #2b2b2b; border-radius: 12px; padding: 16px; font-size: 18px; }
+        .resumo div { display: flex; justify-content: space-between; margin: 6px 0; gap: 10px; }
+        #modal { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: none; align-items: center; justify-content: center; z-index: 10; padding: 20px; }
+        .modal-caixa { background: #2b2b2b; border-radius: 16px; padding: 24px; width: 100%; max-width: 480px; text-align: center; }
+        .modal-caixa input { width: 100%; padding: 14px; font-size: 18px; border: none; border-radius: 10px; margin: 14px 0; }
+        .seletor { display: flex; justify-content: center; align-items: center; gap: 24px; font-size: 36px; margin: 16px 0; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <button id="btnCancelarPedido" class="cancelar">Cancelar pedido</button>
+    <div id="aviso"></div>
+
+    <!-- Tela 1: início -->
+    <section id="telaInicio" class="tela ativa">
+        <h1>BOCCA PRIME</h1>
+        <p class="sub-titulo">Peça aqui, sem fila</p>
+        <div class="centro">
+            <button id="btnComecar">Toque para começar</button>
+        </div>
+    </section>
+
+    <!-- Tela 2: comer aqui ou viagem -->
+    <section id="telaTipo" class="tela">
+        <h2>Como você vai comer?</h2>
+        <div class="centro">
+            <button data-tipo="LOCAL">Comer aqui</button>
+            <button data-tipo="VIAGEM">Para viagem</button>
+        </div>
+    </section>
+
+    <!-- Tela 3: categorias -->
+    <section id="telaCategorias" class="tela">
+        <h2>Escolha uma categoria</h2>
+        <div id="listaCategorias"></div>
+        <button class="barra-carrinho btnVerCarrinho">Ver carrinho</button>
+    </section>
+
+    <!-- Tela 4: produtos -->
+    <section id="telaProdutos" class="tela">
+        <h2 id="tituloCategoria"></h2>
+        <div id="listaProdutos"></div>
+        <button class="sec grande" id="btnVoltarCategorias" style="text-align:center">Voltar às categorias</button>
+        <button class="barra-carrinho btnVerCarrinho">Ver carrinho</button>
+    </section>
+
+    <!-- Tela 5: carrinho -->
+    <section id="telaCarrinho" class="tela">
+        <h2>Seu pedido</h2>
+        <div id="listaCarrinho"></div>
+        <div class="total" id="totalCarrinho"></div>
+        <div class="acoes">
+            <button id="btnIrPagamento" class="ok">Escolher pagamento</button>
+            <button id="btnContinuar" class="sec">Continuar comprando</button>
+        </div>
+    </section>
+
+    <!-- Tela 6: pagamento -->
+    <section id="telaPagamento" class="tela">
+        <h2>Como você quer pagar?</h2>
+        <div class="centro">
+            <button data-forma="CAIXA">Pagar no caixa</button>
+            <button data-forma="CARTAO_SIMULADO">Cartão</button>
+            <button data-forma="PIX_SIMULADO">Pix</button>
+            <button id="btnVoltarCarrinho" class="sec">Voltar ao carrinho</button>
+        </div>
+    </section>
+
+    <!-- Tela 7: senha -->
+    <section id="telaSenha" class="tela">
+        <h2>Pedido confirmado!</h2>
+        <p class="sub-titulo">Sua senha é</p>
+        <div class="senha" id="numeroSenha"></div>
+        <div class="resumo" id="resumoPedido"></div>
+        <div class="acoes" style="margin-top:20px">
+            <button id="btnNovoPedido" class="ok">Fazer novo pedido</button>
+        </div>
+        <p class="sub-titulo" style="margin-top:14px">Esta tela volta ao início sozinha.</p>
+    </section>
+</div>
+
+<!-- Janela de quantidade e observação -->
+<div id="modal">
+    <div class="modal-caixa">
+        <h2 id="modalNome" style="margin:0"></h2>
+        <p class="preco" id="modalPreco"></p>
+        <div class="seletor">
+            <button class="mini" id="btnMenos">−</button>
+            <span id="modalQtd">1</span>
+            <button class="mini" id="btnMais">+</button>
+        </div>
+        <input type="text" id="modalObs" placeholder="Observação (ex.: sem cebola)" maxlength="200">
+        <div class="acoes">
+            <button class="ok" id="btnAdicionar">Adicionar ao carrinho</button>
+            <button class="sec" id="btnFecharModal">Voltar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const URL_API = "http://localhost:8080";
+    const NOMES_PAGAMENTO = { CAIXA: "Pagar no caixa", CARTAO_SIMULADO: "Cartão", PIX_SIMULADO: "Pix" };
+
+    let tipoConsumo = null;
+    let carrinho = [];          // fica só na memória até confirmar o pedido
+    let produtoEscolhido = null;
+    let temporizador = null;
+    let enviando = false;
+
+    function escaparHtml(valor) {
+        const div = document.createElement("div");
+        div.textContent = valor ?? "";
+        return div.innerHTML.replace(/"/g, "&quot;");
+    }
+
+    function formatarPreco(valor) {
+        return Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    }
+
+    function navegarPara(id) {
+        document.querySelectorAll(".tela").forEach(t => t.classList.remove("ativa"));
+        document.getElementById(id).classList.add("ativa");
+        const esconder = (id === "telaInicio" || id === "telaSenha");
+        document.getElementById("btnCancelarPedido").style.display = esconder ? "none" : "block";
+        window.scrollTo(0, 0);
+    }
+
+    function mostrarAviso(texto) {
+        const el = document.getElementById("aviso");
+        el.textContent = texto;
+        el.style.display = "block";
+        setTimeout(() => { el.style.display = "none"; }, 4000);
+    }
+
+    async function lerErro(resposta) {
+        try {
+            const dados = await resposta.json();
+            return dados.erro || "Erro inesperado.";
+        } catch (e) {
+            return "Erro inesperado.";
+        }
+    }
+
+    function reiniciar() {
+        clearTimeout(temporizador);
+        carrinho = [];
+        tipoConsumo = null;
+        fecharModal();
+        atualizarBotoesCarrinho();
+        navegarPara("telaInicio");
+    }
+
+    function totalDoCarrinho() {
+        return carrinho.reduce((soma, i) => soma + i.preco * i.quantidade, 0);
+    }
+
+    function atualizarBotoesCarrinho() {
+        const quantidade = carrinho.reduce((soma, i) => soma + i.quantidade, 0);
+        document.querySelectorAll(".btnVerCarrinho").forEach(b => {
+            b.textContent = quantidade === 0
+                ? "Ver carrinho"
+                : `Ver carrinho (${quantidade}) - ${formatarPreco(totalDoCarrinho())}`;
+        });
+    }
+
+    // ---------- Categorias (RF15) ----------
+    async function carregarCategorias() {
+        const lista = document.getElementById("listaCategorias");
+        lista.innerHTML = "";
+        try {
+            const resposta = await fetch(`${URL_API}/categorias`);
+            if (!resposta.ok) throw new Error();
+            const categorias = (await resposta.json()).filter(c => c.ativo);
+
+            if (categorias.length === 0) {
+                lista.innerHTML = '<p class="vazio">Nenhuma categoria disponível.</p>';
+                return;
+            }
+            categorias.forEach(c => {
+                const botao = document.createElement("button");
+                botao.className = "grande";
+                botao.innerHTML = `${escaparHtml(c.nome)}<small>${escaparHtml(c.descricao)}</small>`;
+                botao.addEventListener("click", () => abrirCategoria(c));
+                lista.appendChild(botao);
+            });
+        } catch (e) {
+            mostrarAviso("Não foi possível carregar o cardápio. Chame um atendente.");
+        }
+    }
+
+    // ---------- Produtos (RF16) ----------
+    async function abrirCategoria(categoria) {
+        document.getElementById("tituloCategoria").textContent = categoria.nome;
+        const lista = document.getElementById("listaProdutos");
+        lista.innerHTML = "";
+        navegarPara("telaProdutos");
+
+        try {
+            const resposta = await fetch(`${URL_API}/produtos?categoriaId=${categoria.id}`);
+            if (!resposta.ok) throw new Error();
+            const produtos = (await resposta.json()).filter(p => p.disponivel);
+
+            if (produtos.length === 0) {
+                lista.innerHTML = '<p class="vazio">Nenhum produto disponível nesta categoria.</p>';
+                return;
+            }
+            produtos.forEach(p => {
+                const card = document.createElement("div");
+                card.className = "card";
+                const imagem = p.imagemUrl
+                    ? `<img src="${escaparHtml(p.imagemUrl)}" alt="" onerror="this.style.display='none'">`
+                    : "";
+                card.innerHTML = `
+                    <div class="foto"><span>🍽️</span>${imagem}</div>
+                    <div class="info">
+                        <h3>${escaparHtml(p.nome)}</h3>
+                        <p>${escaparHtml(p.descricao)}</p>
+                        <strong class="preco">${formatarPreco(p.preco)}</strong>
+                    </div>`;
+                const botao = document.createElement("button");
+                botao.textContent = "Adicionar";
+                botao.addEventListener("click", () => abrirModal(p));
+                card.appendChild(botao);
+                lista.appendChild(card);
+            });
+        } catch (e) {
+            mostrarAviso("Não foi possível carregar os produtos. Chame um atendente.");
+        }
+    }
+
+    // ---------- Quantidade e observação (RF17, RN03) ----------
+    function abrirModal(produto) {
+        produtoEscolhido = produto;
+        document.getElementById("modalNome").textContent = produto.nome;
+        document.getElementById("modalPreco").textContent = formatarPreco(produto.preco);
+        document.getElementById("modalQtd").textContent = "1";
+        document.getElementById("modalObs").value = "";
+        document.getElementById("modal").style.display = "flex";
+    }
+
+    function fecharModal() {
+        document.getElementById("modal").style.display = "none";
+        produtoEscolhido = null;
+    }
+
+    function mudarQuantidadeModal(delta) {
+        const el = document.getElementById("modalQtd");
+        const nova = Number(el.textContent) + delta;
+        if (nova >= 1 && nova <= 20) el.textContent = nova;
+    }
+
+    function adicionarAoCarrinho() {
+        if (!produtoEscolhido) return;
+        const quantidade = Number(document.getElementById("modalQtd").textContent);
+        const observacao = document.getElementById("modalObs").value.trim();
+
+        const existente = carrinho.find(i =>
+            i.produtoId === produtoEscolhido.id && i.observacao === observacao);
+        if (existente) {
+            existente.quantidade = Math.min(20, existente.quantidade + quantidade);
+        } else {
+            carrinho.push({
+                produtoId: produtoEscolhido.id,
+                nome: produtoEscolhido.nome,
+                preco: produtoEscolhido.preco,
+                quantidade: quantidade,
+                observacao: observacao
+            });
+        }
+        fecharModal();
+        atualizarBotoesCarrinho();
+    }
+
+    // ---------- Carrinho (RF18) ----------
+    function renderizarCarrinho() {
+        const lista = document.getElementById("listaCarrinho");
+        lista.innerHTML = "";
+        const vazio = carrinho.length === 0;
+        document.getElementById("btnIrPagamento").disabled = vazio;
+        document.getElementById("totalCarrinho").textContent = "Total: " + formatarPreco(totalDoCarrinho());
+
+        if (vazio) {
+            lista.innerHTML = '<p class="vazio">Seu carrinho está vazio.</p>';
+            return;
+        }
+
+        carrinho.forEach((item, indice) => {
+            const linha = document.createElement("div");
+            linha.className = "linha";
+            linha.innerHTML = `
+                <div class="nome">
+                    <strong>${escaparHtml(item.nome)}</strong>
+                    ${item.observacao ? `<small>Obs.: ${escaparHtml(item.observacao)}</small>` : ""}
+                    <small>${formatarPreco(item.preco)} cada</small>
+                </div>
+                <div class="qtd">
+                    <button class="mini" data-acao="menos">−</button>
+                    <span>${item.quantidade}</span>
+                    <button class="mini" data-acao="mais">+</button>
+                </div>
+                <strong>${formatarPreco(item.preco * item.quantidade)}</strong>
+                <button class="mini remover" data-acao="remover">✕</button>`;
+
+            linha.querySelector('[data-acao="menos"]').addEventListener("click", () => {
+                if (item.quantidade > 1) { item.quantidade--; mudouCarrinho(); }
+            });
+            linha.querySelector('[data-acao="mais"]').addEventListener("click", () => {
+                if (item.quantidade < 20) { item.quantidade++; mudouCarrinho(); }
+            });
+            linha.querySelector('[data-acao="remover"]').addEventListener("click", () => {
+                carrinho.splice(indice, 1);
+                mudouCarrinho();
+            });
+            lista.appendChild(linha);
+        });
+    }
+
+    function mudouCarrinho() {
+        renderizarCarrinho();
+        atualizarBotoesCarrinho();
+    }
+
+    function abrirCarrinho() {
+        renderizarCarrinho();
+        navegarPara("telaCarrinho");
+    }
+
+    // ---------- Confirmar pedido (RF19, RF20, RF21) ----------
+    async function finalizarPedido(forma) {
+        if (enviando) return;
+        if (carrinho.length === 0) {
+            mostrarAviso("Adicione pelo menos um item ao pedido.");
+            return;
+        }
+        enviando = true;
+        try {
+            // O preço NÃO é enviado: o servidor busca o preço no banco
+            const resposta = await fetch(`${URL_API}/pedidos`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    tipoConsumo: tipoConsumo,
+                    formaPagamento: forma,
+                    itens: carrinho.map(i => ({
+                        produtoId: i.produtoId,
+                        quantidade: i.quantidade,
+                        observacao: i.observacao
+                    }))
+                })
+            });
+            if (!resposta.ok) {
+                mostrarAviso(await lerErro(resposta));
+                return;
+            }
+            mostrarSenha(await resposta.json());
+        } catch (e) {
+            mostrarAviso("Servidor indisponível. Chame um atendente.");
+        } finally {
+            enviando = false;
+        }
+    }
+
+    function mostrarSenha(pedido) {
+        document.getElementById("numeroSenha").textContent = pedido.numeroSenha;
+
+        const itens = pedido.itens.map(i => `
+            <div><span>${i.quantidade}x ${escaparHtml(i.produtoNome)}</span>
+            <span>${formatarPreco(i.subtotal)}</span></div>`).join("");
+        document.getElementById("resumoPedido").innerHTML = `
+            ${itens}
+            <hr>
+            <div><strong>Total</strong><strong>${formatarPreco(pedido.valorTotal)}</strong></div>
+            <div><span>Pagamento</span><span>${NOMES_PAGAMENTO[pedido.formaPagamento] || ""}</span></div>
+            <div><span>Consumo</span><span>${pedido.tipoConsumo === "LOCAL" ? "Comer aqui" : "Para viagem"}</span></div>`;
+
+        carrinho = [];
+        atualizarBotoesCarrinho();
+        navegarPara("telaSenha");
+        clearTimeout(temporizador);
+        temporizador = setTimeout(reiniciar, 20000);
+    }
+
+    // ---------- Botões ----------
+    document.getElementById("btnComecar").addEventListener("click", () => navegarPara("telaTipo"));
+
+    document.querySelectorAll("[data-tipo]").forEach(botao => {
+        botao.addEventListener("click", () => {
+            tipoConsumo = botao.dataset.tipo;
+            carregarCategorias();
+            navegarPara("telaCategorias");
+        });
+    });
+
+    document.getElementById("btnVoltarCategorias").addEventListener("click", () => navegarPara("telaCategorias"));
+    document.querySelectorAll(".btnVerCarrinho").forEach(b => b.addEventListener("click", abrirCarrinho));
+    document.getElementById("btnContinuar").addEventListener("click", () => navegarPara("telaCategorias"));
+    document.getElementById("btnIrPagamento").addEventListener("click", () => navegarPara("telaPagamento"));
+    document.getElementById("btnVoltarCarrinho").addEventListener("click", abrirCarrinho);
+
+    document.querySelectorAll("[data-forma]").forEach(botao => {
+        botao.addEventListener("click", () => finalizarPedido(botao.dataset.forma));
+    });
+
+    document.getElementById("btnMenos").addEventListener("click", () => mudarQuantidadeModal(-1));
+    document.getElementById("btnMais").addEventListener("click", () => mudarQuantidadeModal(1));
+    document.getElementById("btnAdicionar").addEventListener("click", adicionarAoCarrinho);
+    document.getElementById("btnFecharModal").addEventListener("click", fecharModal);
+
+    // RF22: cancelar pedido em qualquer tela
+    document.getElementById("btnCancelarPedido").addEventListener("click", () => {
+        if (confirm("Deseja cancelar o pedido?")) reiniciar();
+    });
+    document.getElementById("btnNovoPedido").addEventListener("click", reiniciar);
+</script>
+</body>
+</html>

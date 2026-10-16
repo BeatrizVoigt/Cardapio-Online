@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOCCA PRIME - Produtos</title>
+    <style>
+        * { box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { margin: 0; background: #1a1a1a; color: #fff; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 { text-align: center; }
+        nav { text-align: center; margin-bottom: 15px; }
+        nav a { color: #90caf9; margin: 0 10px; }
+        form.cadastro { display: grid; gap: 8px; background: #2b2b2b; padding: 15px; border-radius: 10px; }
+        input[type=text], input[type=number], select { padding: 10px; border: none; border-radius: 6px; font-size: 16px; width: 100%; }
+        label.check { display: flex; align-items: center; gap: 8px; }
+        button { padding: 8px 14px; border: none; border-radius: 6px; background: #c8102e; color: #fff; font-size: 14px; cursor: pointer; margin: 2px; }
+        button.sec { background: #666; }
+        button.edit { background: #1e88e5; }
+        button.toggle { background: #f9a825; color: #000; }
+        .filtros { display: flex; gap: 8px; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: #2b2b2b; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #444; font-size: 14px; }
+        tr.inativo td { opacity: 0.5; }
+        #mensagem { margin: 12px 0; padding: 10px; border-radius: 6px; display: none; }
+        .ok { background: #2e7d32; }
+        .erro { background: #b71c1c; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Produtos</h1>
+    <nav>
+        <a href="admin-categorias.html">Categorias</a>
+        <a href="admin-produtos.html">Produtos</a>
+    </nav>
+
+    <div id="mensagem"></div>
+
+    <form class="cadastro" id="formProduto">
+        <input type="hidden" id="prodId">
+        <input type="text" id="prodNome" placeholder="Nome (obrigatório)" maxlength="100">
+        <select id="prodCategoria"></select>
+        <input type="text" id="prodDescricao" placeholder="Descrição" maxlength="500">
+        <input type="number" id="prodPreco" placeholder="Preço (ex.: 22.90)" step="0.01" min="0.01">
+        <input type="text" id="prodImagem" placeholder="Caminho da imagem (ex.: img/x-burger.jpg)" maxlength="255">
+        <label class="check"><input type="checkbox" id="prodDisponivel" checked> Disponível</label>
+        <div>
+            <button type="submit" id="btnSalvar">Cadastrar</button>
+            <button type="button" class="sec" id="btnLimpar">Limpar</button>
+        </div>
+    </form>
+
+    <div class="filtros">
+        <select id="filtroCategoria"></select>
+        <input type="text" id="filtroBusca" placeholder="Buscar por nome...">
+        <button type="button" id="btnFiltrar">Filtrar</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>Nome</th><th>Categoria</th><th>Preço</th><th>Disponível</th><th>Ações</th></tr>
+        </thead>
+        <tbody id="corpoTabela"></tbody>
+    </table>
+</div>
+
+<script>
+    const URL_PRODUTOS = "http://localhost:8080/produtos";
+    const URL_CATEGORIAS = "http://localhost:8080/categorias";
+    let produtos = [];
+
+    function escaparHtml(valor) {
+        const div = document.createElement("div");
+        div.textContent = valor ?? "";
+        return div.innerHTML;
+    }
+
+    function formatarPreco(valor) {
+        return Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    }
+
+    function mostrarMensagem(texto, tipo) {
+        const el = document.getElementById("mensagem");
+        el.textContent = texto;
+        el.className = tipo;
+        el.style.display = "block";
+        setTimeout(() => { el.style.display = "none"; }, 5000);
+    }
+
+    async function lerErro(resposta) {
+        try {
+            const dados = await resposta.json();
+            return dados.erro || "Erro inesperado.";
+        } catch (e) {
+            return "Erro inesperado.";
+        }
+    }
+
+    // Preenche os dois seletores de categoria (formulário e filtro)
+    async function carregarCategorias() {
+        try {
+            const resposta = await fetch(URL_CATEGORIAS);
+            if (!resposta.ok) throw new Error();
+            const categorias = await resposta.json();
+
+            const selForm = document.getElementById("prodCategoria");
+            const selFiltro = document.getElementById("filtroCategoria");
+            selForm.innerHTML = '<option value="">Escolha a categoria</option>';
+            selFiltro.innerHTML = '<option value="">Todas as categorias</option>';
+
+            categorias.forEach(c => {
+                selForm.insertAdjacentHTML("beforeend",
+                    `<option value="${c.id}">${escaparHtml(c.nome)}</option>`);
+                selFiltro.insertAdjacentHTML("beforeend",
+                    `<option value="${c.id}">${escaparHtml(c.nome)}</option>`);
+            });
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível. Verifique se o Java está rodando.", "erro");
+        }
+    }
+
+    async function carregarProdutos() {
+        const params = new URLSearchParams();
+        const categoriaId = document.getElementById("filtroCategoria").value;
+        const busca = document.getElementById("filtroBusca").value.trim();
+        if (categoriaId) params.append("categoriaId", categoriaId);
+        if (busca) params.append("busca", busca);
+
+        try {
+            const resposta = await fetch(`${URL_PRODUTOS}?${params.toString()}`);
+            if (!resposta.ok) throw new Error();
+            produtos = await resposta.json();
+
+            const corpo = document.getElementById("corpoTabela");
+            corpo.innerHTML = "";
+
+            if (produtos.length === 0) {
+                corpo.innerHTML = '<tr><td colspan="5">Nenhum produto encontrado.</td></tr>';
+                return;
+            }
+
+            produtos.forEach(p => {
+                const tr = document.createElement("tr");
+                if (!p.disponivel) tr.className = "inativo";
+                tr.innerHTML = `
+                    <td>${escaparHtml(p.nome)}</td>
+                    <td>${escaparHtml(p.categoriaNome)}</td>
+                    <td>${formatarPreco(p.preco)}</td>
+                    <td>${p.disponivel ? "Sim" : "Não"}</td>
+                    <td>
+                        <button class="edit" onclick="editar(${p.id})">Editar</button>
+                        <button class="toggle" onclick="alternar(${p.id}, ${!p.disponivel})">
+                            ${p.disponivel ? "Desativar" : "Ativar"}
+                        </button>
+                        <button onclick="excluir(${p.id})">Excluir</button>
+                    </td>`;
+                corpo.appendChild(tr);
+            });
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível. Verifique se o Java está rodando.", "erro");
+        }
+    }
+
+    function limparFormulario() {
+        document.getElementById("formProduto").reset();
+        document.getElementById("prodId").value = "";
+        document.getElementById("btnSalvar").textContent = "Cadastrar";
+    }
+
+    function editar(id) {
+        const p = produtos.find(item => item.id === id);
+        if (!p) return;
+        document.getElementById("prodId").value = p.id;
+        document.getElementById("prodNome").value = p.nome;
+        document.getElementById("prodCategoria").value = p.categoriaId;
+        document.getElementById("prodDescricao").value = p.descricao ?? "";
+        document.getElementById("prodPreco").value = p.preco;
+        document.getElementById("prodImagem").value = p.imagemUrl ?? "";
+        document.getElementById("prodDisponivel").checked = p.disponivel;
+        document.getElementById("btnSalvar").textContent = "Salvar alterações";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function alternar(id, novoValor) {
+        try {
+            const resposta = await fetch(`${URL_PRODUTOS}/${id}/disponivel?valor=${novoValor}`, { method: "PATCH" });
+            if (!resposta.ok) {
+                mostrarMensagem(await lerErro(resposta), "erro");
+                return;
+            }
+            mostrarMensagem(novoValor ? "Produto ativado!" : "Produto desativado!", "ok");
+            carregarProdutos();
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível.", "erro");
+        }
+    }
+
+    async function excluir(id) {
+        if (!confirm("Deseja realmente excluir este produto?")) return;
+        try {
+            const resposta = await fetch(`${URL_PRODUTOS}/${id}`, { method: "DELETE" });
+            if (!resposta.ok) {
+                mostrarMensagem(await lerErro(resposta), "erro");
+                return;
+            }
+            const dados = await resposta.json();
+            mostrarMensagem(dados.mensagem, "ok");
+            carregarProdutos();
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível.", "erro");
+        }
+    }
+
+    document.getElementById("formProduto").addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const id = document.getElementById("prodId").value;
+        const preco = document.getElementById("prodPreco").value;
+        const categoria = document.getElementById("prodCategoria").value;
+        const dados = {
+            nome: document.getElementById("prodNome").value,
+            categoriaId: categoria === "" ? null : Number(categoria),
+            descricao: document.getElementById("prodDescricao").value,
+            preco: preco === "" ? null : Number(preco),
+            imagemUrl: document.getElementById("prodImagem").value,
+            disponivel: document.getElementById("prodDisponivel").checked
+        };
+
+        try {
+            const resposta = await fetch(id ? `${URL_PRODUTOS}/${id}` : URL_PRODUTOS, {
+                method: id ? "PUT" : "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(dados)
+            });
+            if (!resposta.ok) {
+                mostrarMensagem(await lerErro(resposta), "erro");
+                return;
+            }
+            mostrarMensagem(id ? "Produto atualizado!" : "Produto cadastrado!", "ok");
+            limparFormulario();
+            carregarProdutos();
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível.", "erro");
+        }
+    });
+
+    document.getElementById("btnLimpar").addEventListener("click", limparFormulario);
+    document.getElementById("btnFiltrar").addEventListener("click", carregarProdutos);
+    document.getElementById("filtroCategoria").addEventListener("change", carregarProdutos);
+    document.getElementById("filtroBusca").addEventListener("keydown", e => {
+        if (e.key === "Enter") carregarProdutos();
+    });
+
+    carregarCategorias().then(carregarProdutos);
+</script>
+</body>
+</html>

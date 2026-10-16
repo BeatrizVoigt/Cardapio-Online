@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOCCA PRIME - Categorias</title>
+    <style>
+        * { box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { margin: 0; background: #1a1a1a; color: #fff; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { text-align: center; }
+        form { display: grid; gap: 8px; background: #2b2b2b; padding: 15px; border-radius: 10px; }
+        input[type=text], input[type=number] { padding: 10px; border: none; border-radius: 6px; font-size: 16px; }
+        label.check { display: flex; align-items: center; gap: 8px; }
+        button { padding: 10px 16px; border: none; border-radius: 6px; background: #c8102e; color: #fff; font-size: 15px; cursor: pointer; }
+        button.sec { background: #666; }
+        button.edit { background: #1e88e5; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #2b2b2b; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #444; }
+        #mensagem { margin: 12px 0; padding: 10px; border-radius: 6px; display: none; }
+        .ok { background: #2e7d32; }
+        .erro { background: #b71c1c; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Categorias</h1>
+
+    <div id="mensagem"></div>
+
+    <form id="formCategoria">
+        <input type="hidden" id="catId">
+        <input type="text" id="catNome" placeholder="Nome (obrigatório)" maxlength="60">
+        <input type="text" id="catDescricao" placeholder="Descrição" maxlength="255">
+        <input type="number" id="catOrdem" placeholder="Ordem de exibição" min="0">
+        <label class="check"><input type="checkbox" id="catAtivo" checked> Ativa</label>
+        <div>
+            <button type="submit" id="btnSalvar">Cadastrar</button>
+            <button type="button" class="sec" id="btnCancelar">Limpar</button>
+        </div>
+    </form>
+
+    <table>
+        <thead>
+            <tr><th>Ordem</th><th>Nome</th><th>Descrição</th><th>Ativa</th><th>Ações</th></tr>
+        </thead>
+        <tbody id="corpoTabela"></tbody>
+    </table>
+</div>
+
+<script>
+    const URL_API = "http://localhost:8080/categorias";
+    let categorias = [];
+
+    function escaparHtml(valor) {
+        const div = document.createElement("div");
+        div.textContent = valor ?? "";
+        return div.innerHTML;
+    }
+
+    function mostrarMensagem(texto, tipo) {
+        const el = document.getElementById("mensagem");
+        el.textContent = texto;
+        el.className = tipo;
+        el.style.display = "block";
+        setTimeout(() => { el.style.display = "none"; }, 4000);
+    }
+
+    // Lê a mensagem de erro enviada pelo Java
+    async function lerErro(resposta) {
+        try {
+            const dados = await resposta.json();
+            return dados.erro || "Erro inesperado.";
+        } catch (e) {
+            return "Erro inesperado.";
+        }
+    }
+
+    async function carregar() {
+        try {
+            const resposta = await fetch(URL_API);
+            if (!resposta.ok) throw new Error();
+            categorias = await resposta.json();
+
+            const corpo = document.getElementById("corpoTabela");
+            corpo.innerHTML = "";
+
+            if (categorias.length === 0) {
+                corpo.innerHTML = '<tr><td colspan="5">Nenhuma categoria cadastrada.</td></tr>';
+                return;
+            }
+
+            categorias.forEach(c => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${c.ordemExibicao}</td>
+                    <td>${escaparHtml(c.nome)}</td>
+                    <td>${escaparHtml(c.descricao)}</td>
+                    <td>${c.ativo ? "Sim" : "Não"}</td>
+                    <td>
+                        <button class="edit" onclick="editar(${c.id})">Editar</button>
+                        <button onclick="excluir(${c.id})">Excluir</button>
+                    </td>`;
+                corpo.appendChild(tr);
+            });
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível. Verifique se o Java está rodando.", "erro");
+        }
+    }
+
+    function limparFormulario() {
+        document.getElementById("formCategoria").reset();
+        document.getElementById("catId").value = "";
+        document.getElementById("btnSalvar").textContent = "Cadastrar";
+    }
+
+    function editar(id) {
+        const c = categorias.find(item => item.id === id);
+        if (!c) return;
+        document.getElementById("catId").value = c.id;
+        document.getElementById("catNome").value = c.nome;
+        document.getElementById("catDescricao").value = c.descricao ?? "";
+        document.getElementById("catOrdem").value = c.ordemExibicao;
+        document.getElementById("catAtivo").checked = c.ativo;
+        document.getElementById("btnSalvar").textContent = "Salvar alterações";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function excluir(id) {
+        if (!confirm("Deseja realmente excluir esta categoria?")) return;
+        try {
+            const resposta = await fetch(`${URL_API}/${id}`, { method: "DELETE" });
+            if (!resposta.ok) {
+                mostrarMensagem(await lerErro(resposta), "erro");
+                return;
+            }
+            mostrarMensagem("Categoria excluída com sucesso!", "ok");
+            carregar();
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível.", "erro");
+        }
+    }
+
+    document.getElementById("formCategoria").addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const id = document.getElementById("catId").value;
+        const ordem = document.getElementById("catOrdem").value;
+        const dados = {
+            nome: document.getElementById("catNome").value,
+            descricao: document.getElementById("catDescricao").value,
+            ordemExibicao: ordem === "" ? null : Number(ordem),
+            ativo: document.getElementById("catAtivo").checked
+        };
+
+        try {
+            const resposta = await fetch(id ? `${URL_API}/${id}` : URL_API, {
+                method: id ? "PUT" : "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(dados)
+            });
+            if (!resposta.ok) {
+                mostrarMensagem(await lerErro(resposta), "erro");
+                return;
+            }
+            mostrarMensagem(id ? "Categoria atualizada!" : "Categoria cadastrada!", "ok");
+            limparFormulario();
+            carregar();
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível.", "erro");
+        }
+    });
+
+    document.getElementById("btnCancelar").addEventListener("click", limparFormulario);
+
+    carregar();
+</script>
+</body>
+</html>

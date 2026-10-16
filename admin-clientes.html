@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOCCA PRIME - Clientes</title>
+    <style>
+        * { box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { margin: 0; background: #1a1a1a; color: #fff; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { text-align: center; }
+        nav { text-align: center; margin-bottom: 15px; }
+        nav a { color: #90caf9; margin: 0 10px; }
+        form { display: grid; gap: 8px; background: #2b2b2b; padding: 15px; border-radius: 10px; }
+        input[type=text], input[type=email] { padding: 10px; border: none; border-radius: 6px; font-size: 16px; width: 100%; }
+        button { padding: 10px 16px; border: none; border-radius: 6px; background: #c8102e; color: #fff; font-size: 15px; cursor: pointer; margin: 2px; }
+        button.sec { background: #666; }
+        button.edit { background: #1e88e5; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #2b2b2b; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #444; font-size: 14px; }
+        #mensagem { margin: 12px 0; padding: 10px; border-radius: 6px; display: none; }
+        .ok { background: #2e7d32; }
+        .erro { background: #b71c1c; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Clientes</h1>
+    <nav>
+        <a href="admin-categorias.html">Categorias</a>
+        <a href="admin-produtos.html">Produtos</a>
+        <a href="admin-pedidos.html">Pedidos</a>
+        <a href="admin-clientes.html">Clientes</a>
+    </nav>
+
+    <div id="mensagem"></div>
+
+    <form id="formCliente">
+        <input type="hidden" id="cliId">
+        <input type="text" id="cliNome" placeholder="Nome (obrigatório)" maxlength="100">
+        <input type="text" id="cliCpf" placeholder="CPF (obrigatório)" maxlength="14">
+        <input type="text" id="cliTelefone" placeholder="Telefone" maxlength="20">
+        <input type="email" id="cliEmail" placeholder="E-mail" maxlength="100">
+        <div>
+            <button type="submit" id="btnSalvar">Cadastrar</button>
+            <button type="button" class="sec" id="btnLimpar">Limpar</button>
+        </div>
+    </form>
+
+    <table>
+        <thead>
+            <tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>E-mail</th><th>Ações</th></tr>
+        </thead>
+        <tbody id="corpoTabela"></tbody>
+    </table>
+</div>
+
+<script>
+    const URL_API = "http://localhost:8080/clientes";
+    let clientes = [];
+
+    function escaparHtml(valor) {
+        const div = document.createElement("div");
+        div.textContent = valor ?? "";
+        return div.innerHTML;
+    }
+
+    function mostrarMensagem(texto, tipo) {
+        const el = document.getElementById("mensagem");
+        el.textContent = texto;
+        el.className = tipo;
+        el.style.display = "block";
+        setTimeout(() => { el.style.display = "none"; }, 5000);
+    }
+
+    async function lerErro(resposta) {
+        try {
+            const dados = await resposta.json();
+            return dados.erro || "Erro inesperado.";
+        } catch (e) {
+            return "Erro inesperado.";
+        }
+    }
+
+    async function carregar() {
+        try {
+            const resposta = await fetch(URL_API);
+            if (!resposta.ok) throw new Error();
+            clientes = await resposta.json();
+
+            const corpo = document.getElementById("corpoTabela");
+            corpo.innerHTML = "";
+
+            if (clientes.length === 0) {
+                corpo.innerHTML = '<tr><td colspan="5">Nenhum cliente cadastrado ainda.</td></tr>';
+                return;
+            }
+
+            clientes.forEach(c => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${escaparHtml(c.nome)}</td>
+                    <td>${escaparHtml(c.cpf)}</td>
+                    <td>${escaparHtml(c.telefone) || "-"}</td>
+                    <td>${escaparHtml(c.email) || "-"}</td>
+                    <td>
+                        <button class="edit" onclick="editar(${c.id})">Editar</button>
+                        <button onclick="excluir(${c.id})">Excluir</button>
+                    </td>`;
+                corpo.appendChild(tr);
+            });
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível. Verifique se o Java está rodando.", "erro");
+        }
+    }
+
+    function limparFormulario() {
+        document.getElementById("formCliente").reset();
+        document.getElementById("cliId").value = "";
+        document.getElementById("btnSalvar").textContent = "Cadastrar";
+    }
+
+    function editar(id) {
+        const c = clientes.find(item => item.id === id);
+        if (!c) return;
+        document.getElementById("cliId").value = c.id;
+        document.getElementById("cliNome").value = c.nome;
+        document.getElementById("cliCpf").value = c.cpf;
+        document.getElementById("cliTelefone").value = c.telefone ?? "";
+        document.getElementById("cliEmail").value = c.email ?? "";
+        document.getElementById("btnSalvar").textContent = "Salvar alterações";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function excluir(id) {
+        if (!confirm("Deseja realmente excluir este cliente?")) return;
+        try {
+            const resposta = await fetch(`${URL_API}/${id}`, { method: "DELETE" });
+            if (!resposta.ok) {
+                mostrarMensagem(await lerErro(resposta), "erro");
+                return;
+            }
+            mostrarMensagem("Cliente excluído com sucesso!", "ok");
+            carregar();
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível.", "erro");
+        }
+    }
+
+    document.getElementById("formCliente").addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const id = document.getElementById("cliId").value;
+        const dados = {
+            nome: document.getElementById("cliNome").value,
+            cpf: document.getElementById("cliCpf").value,
+            telefone: document.getElementById("cliTelefone").value,
+            email: document.getElementById("cliEmail").value
+        };
+
+        try {
+            const resposta = await fetch(id ? `${URL_API}/${id}` : URL_API, {
+                method: id ? "PUT" : "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(dados)
+            });
+            if (!resposta.ok) {
+                mostrarMensagem(await lerErro(resposta), "erro");
+                return;
+            }
+            mostrarMensagem(id ? "Cliente atualizado!" : "Cliente cadastrado!", "ok");
+            limparFormulario();
+            carregar();
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível.", "erro");
+        }
+    });
+
+    document.getElementById("btnLimpar").addEventListener("click", limparFormulario);
+
+    carregar();
+</script>
+</body>
+</html>

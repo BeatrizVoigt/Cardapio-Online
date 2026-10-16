@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOCCA PRIME - Pedidos</title>
+    <style>
+        * { box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { margin: 0; background: #1a1a1a; color: #fff; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 { text-align: center; }
+        nav { text-align: center; margin-bottom: 15px; }
+        nav a { color: #90caf9; margin: 0 10px; }
+        button { padding: 8px 14px; border: none; border-radius: 6px; background: #c8102e; color: #fff; font-size: 14px; cursor: pointer; margin: 2px; }
+        button.det { background: #1e88e5; }
+        button.avancar { background: #2e7d32; }
+        button.sec { background: #666; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: #2b2b2b; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #444; font-size: 14px; }
+        .selo { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .RECEBIDO { background: #1565c0; }
+        .EM_PREPARO { background: #f9a825; color: #000; }
+        .PRONTO { background: #2e7d32; }
+        .ENTREGUE { background: #555; }
+        .CANCELADO { background: #b71c1c; }
+        #detalhe { display: none; background: #2b2b2b; border-radius: 10px; padding: 15px; margin-top: 15px; border: 2px solid #1e88e5; }
+        #detalhe h2 { margin-top: 0; }
+        #detalhe table { margin-top: 10px; background: #1f1f1f; }
+        .total { text-align: right; font-size: 20px; margin-top: 10px; color: #ffca28; }
+        #mensagem { margin: 12px 0; padding: 10px; border-radius: 6px; display: none; }
+        .ok { background: #2e7d32; }
+        .erro { background: #b71c1c; }
+        .rodape { text-align: center; opacity: .6; margin-top: 12px; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Pedidos de hoje</h1>
+    <nav>
+        <a href="admin-categorias.html">Categorias</a>
+        <a href="admin-produtos.html">Produtos</a>
+        <a href="admin-pedidos.html">Pedidos</a>
+    </nav>
+
+    <div id="mensagem"></div>
+
+    <div id="detalhe"></div>
+
+    <table>
+        <thead>
+            <tr><th>Senha</th><th>Horário</th><th>Consumo</th><th>Pagamento</th><th>Total</th><th>Status</th><th>Ações</th></tr>
+        </thead>
+        <tbody id="corpoTabela"></tbody>
+    </table>
+    <p class="rodape">A lista atualiza sozinha a cada 10 segundos.</p>
+</div>
+
+<script>
+    const URL_PEDIDOS = "http://localhost:8080/pedidos";
+
+    const NOMES_STATUS = {
+        RECEBIDO: "Recebido", EM_PREPARO: "Em preparo", PRONTO: "Pronto",
+        ENTREGUE: "Entregue", CANCELADO: "Cancelado"
+    };
+    const PROXIMO = { RECEBIDO: "Iniciar preparo", EM_PREPARO: "Marcar pronto", PRONTO: "Marcar entregue" };
+    const NOMES_PAGAMENTO = { CAIXA: "Caixa", CARTAO_SIMULADO: "Cartão", PIX_SIMULADO: "Pix" };
+    const NOMES_CONSUMO = { LOCAL: "Comer aqui", VIAGEM: "Viagem" };
+
+    let detalheAberto = null;
+
+    function escaparHtml(valor) {
+        const div = document.createElement("div");
+        div.textContent = valor ?? "";
+        return div.innerHTML;
+    }
+
+    function formatarPreco(valor) {
+        return Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    }
+
+    // Aceita a data como texto ISO ou como lista [ano, mês, dia, hora, minuto]
+    function formatarHora(valor) {
+        let data;
+        if (Array.isArray(valor)) {
+            data = new Date(valor[0], valor[1] - 1, valor[2], valor[3] || 0, valor[4] || 0);
+        } else {
+            data = new Date(valor);
+        }
+        if (isNaN(data)) return "-";
+        return data.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function mostrarMensagem(texto, tipo) {
+        const el = document.getElementById("mensagem");
+        el.textContent = texto;
+        el.className = tipo;
+        el.style.display = "block";
+        setTimeout(() => { el.style.display = "none"; }, 5000);
+    }
+
+    async function lerErro(resposta) {
+        try {
+            const dados = await resposta.json();
+            return dados.erro || "Erro inesperado.";
+        } catch (e) {
+            return "Erro inesperado.";
+        }
+    }
+
+    // RF10: lista os pedidos do dia
+    async function carregar(silencioso) {
+        try {
+            const resposta = await fetch(URL_PEDIDOS);
+            if (!resposta.ok) throw new Error();
+            const pedidos = await resposta.json();
+
+            const corpo = document.getElementById("corpoTabela");
+            corpo.innerHTML = "";
+
+            if (pedidos.length === 0) {
+                corpo.innerHTML = '<tr><td colspan="7">Nenhum pedido hoje.</td></tr>';
+                return;
+            }
+
+            pedidos.forEach(p => {
+                const podeAvancar = PROXIMO[p.status] !== undefined;
+                const podeCancelar = p.status === "RECEBIDO" || p.status === "EM_PREPARO";
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td><strong>${p.numeroSenha}</strong></td>
+                    <td>${formatarHora(p.criadoEm)}</td>
+                    <td>${NOMES_CONSUMO[p.tipoConsumo] || ""}</td>
+                    <td>${NOMES_PAGAMENTO[p.formaPagamento] || ""}</td>
+                    <td>${formatarPreco(p.valorTotal)}</td>
+                    <td><span class="selo ${p.status}">${NOMES_STATUS[p.status]}</span></td>
+                    <td>
+                        <button class="det" onclick="verDetalhe(${p.id})">Detalhes</button>
+                        ${podeAvancar ? `<button class="avancar" onclick="avancar(${p.id})">${PROXIMO[p.status]}</button>` : ""}
+                        ${podeCancelar ? `<button onclick="cancelar(${p.id})">Cancelar</button>` : ""}
+                    </td>`;
+                corpo.appendChild(tr);
+            });
+
+            if (detalheAberto !== null) verDetalhe(detalheAberto, true);
+        } catch (e) {
+            if (!silencioso) mostrarMensagem("Servidor indisponível. Verifique se o Java está rodando.", "erro");
+        }
+    }
+
+    // RF11: detalhe do pedido com os itens
+    async function verDetalhe(id, atualizando) {
+        try {
+            const resposta = await fetch(`${URL_PEDIDOS}/${id}`);
+            if (!resposta.ok) {
+                mostrarMensagem(await lerErro(resposta), "erro");
+                return;
+            }
+            const p = await resposta.json();
+            detalheAberto = id;
+
+            const itens = p.itens.map(i => `
+                <tr>
+                    <td>${i.quantidade}x ${escaparHtml(i.produtoNome)}</td>
+                    <td>${formatarPreco(i.precoUnitario)}</td>
+                    <td>${formatarPreco(i.subtotal)}</td>
+                    <td>${escaparHtml(i.observacao) || "-"}</td>
+                </tr>`).join("");
+
+            const el = document.getElementById("detalhe");
+            el.innerHTML = `
+                <h2>Pedido — senha ${p.numeroSenha}
+                    <span class="selo ${p.status}">${NOMES_STATUS[p.status]}</span></h2>
+                <table>
+                    <thead><tr><th>Item</th><th>Preço unit.</th><th>Subtotal</th><th>Observação</th></tr></thead>
+                    <tbody>${itens}</tbody>
+                </table>
+                <div class="total">Total: ${formatarPreco(p.valorTotal)}</div>
+                <button class="sec" onclick="fecharDetalhe()">Fechar</button>`;
+            el.style.display = "block";
+            if (!atualizando) el.scrollIntoView({ behavior: "smooth" });
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível.", "erro");
+        }
+    }
+
+    function fecharDetalhe() {
+        detalheAberto = null;
+        document.getElementById("detalhe").style.display = "none";
+    }
+
+    // RF12: avançar o status
+    async function avancar(id) {
+        try {
+            const resposta = await fetch(`${URL_PEDIDOS}/${id}/avancar`, { method: "PATCH" });
+            if (!resposta.ok) {
+                mostrarMensagem(await lerErro(resposta), "erro");
+                return;
+            }
+            mostrarMensagem("Status atualizado!", "ok");
+            carregar();
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível.", "erro");
+        }
+    }
+
+    // RF12: cancelar o pedido
+    async function cancelar(id) {
+        if (!confirm("Deseja realmente cancelar este pedido?")) return;
+        try {
+            const resposta = await fetch(`${URL_PEDIDOS}/${id}/cancelar`, { method: "PATCH" });
+            if (!resposta.ok) {
+                mostrarMensagem(await lerErro(resposta), "erro");
+                return;
+            }
+            mostrarMensagem("Pedido cancelado.", "ok");
+            carregar();
+        } catch (e) {
+            mostrarMensagem("Servidor indisponível.", "erro");
+        }
+    }
+
+    carregar();
+    setInterval(() => carregar(true), 10000);
+</script>
+</body>
+</html>
