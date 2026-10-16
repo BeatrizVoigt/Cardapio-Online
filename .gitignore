@@ -1,0 +1,4 @@
+api/src/main/resources/application.properties
+api/target/
+
+## A primeira linha esconde o arquivo com a sua senha. A segunda esconde a pasta target, que o Java gera sozinho e não precisa ir para o repositório.
