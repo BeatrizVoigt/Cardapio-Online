@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOCCA PRIME - Acompanhar pedido</title>
+    <style>
+        * { box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { margin: 0; background: #1a1a1a; color: #fff; }
+        .caixa { max-width: 600px; margin: 0 auto; padding: 30px 20px; text-align: center; }
+        h1 { font-size: 36px; margin: 10px 0; }
+        .senha { font-size: 100px; color: #ffca28; margin: 10px 0; }
+        .status { display: inline-block; padding: 14px 28px; border-radius: 30px; font-size: 28px; font-weight: bold; margin: 10px 0 20px; }
+        .RECEBIDO { background: #1565c0; }
+        .EM_PREPARO { background: #f9a825; color: #000; }
+        .PRONTO { background: #2e7d32; }
+        .ENTREGUE { background: #555; }
+        .CANCELADO { background: #b71c1c; }
+        .resumo { background: #2b2b2b; border-radius: 12px; padding: 16px; text-align: left; font-size: 18px; }
+        .resumo div { display: flex; justify-content: space-between; margin: 6px 0; gap: 10px; }
+        .botoes { display: grid; gap: 12px; margin-top: 24px; }
+        .botoes a { display: block; text-decoration: none; color: #fff; border-radius: 14px; font-size: 22px; padding: 18px; background: #c8102e; }
+        .botoes a.sec { background: #555; }
+        .aviso { opacity: .6; margin-top: 14px; font-size: 14px; }
+    </style>
+</head>
+<body>
+<div class="caixa">
+    <h1 id="saudacao">Seu pedido</h1>
+    <div id="conteudo"></div>
+    <div class="botoes">
+        <a href="totem.html">Fazer novo pedido</a>
+        <a class="sec" href="index.html" onclick="sessionStorage.clear()">Sair</a>
+    </div>
+    <p class="aviso">A situação atualiza sozinha a cada 5 segundos.</p>
+</div>
+
+<script>
+    const URL_API = "http://localhost:8080";
+    const NOMES_STATUS = {
+        RECEBIDO: "Pedido recebido",
+        EM_PREPARO: "Em preparo",
+        PRONTO: "Pronto! Pode retirar",
+        ENTREGUE: "Entregue",
+        CANCELADO: "Cancelado"
+    };
+
+    const pedidoId = sessionStorage.getItem("pedidoId");
+    const clienteNome = sessionStorage.getItem("clienteNome");
+    if (clienteNome) {
+        document.getElementById("saudacao").textContent = "Olá, " + clienteNome + "!";
+    }
+
+    function escaparHtml(valor) {
+        const div = document.createElement("div");
+        div.textContent = valor ?? "";
+        return div.innerHTML;
+    }
+
+    function formatarPreco(valor) {
+        return Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    }
+
+    async function carregar() {
+        const el = document.getElementById("conteudo");
+        if (!pedidoId) {
+            el.innerHTML = "<p>Nenhum pedido para acompanhar ainda.</p>";
+            return;
+        }
+        try {
+            const resposta = await fetch(`${URL_API}/pedidos/${pedidoId}`);
+            if (!resposta.ok) throw new Error();
+            const p = await resposta.json();
+
+            const itens = p.itens.map(i => `
+                <div><span>${i.quantidade}x ${escaparHtml(i.produtoNome)}</span>
+                <span>${formatarPreco(i.subtotal)}</span></div>`).join("");
+
+            el.innerHTML = `
+                <p>Sua senha</p>
+                <div class="senha">${p.numeroSenha}</div>
+                <div class="status ${p.status}">${NOMES_STATUS[p.status]}</div>
+                <div class="resumo">
+                    ${itens}
+                    <hr>
+                    <div><strong>Total</strong><strong>${formatarPreco(p.valorTotal)}</strong></div>
+                </div>`;
+        } catch (e) {
+            el.innerHTML = "<p>Não foi possível consultar o pedido. Chame um atendente.</p>";
+        }
+    }
+
+    carregar();
+    setInterval(carregar, 5000);
+</script>
+</body>
+</html>

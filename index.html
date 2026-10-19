@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOCCA PRIME</title>
+    <style>
+        * { box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { margin: 0; background: #1a1a1a; color: #fff; }
+        .caixa { max-width: 600px; margin: 0 auto; padding: 30px 20px; }
+        h1 { text-align: center; font-size: 44px; margin: 20px 0 6px; }
+        p.sub { text-align: center; opacity: .7; font-size: 18px; margin: 0 0 24px; }
+        form { display: grid; gap: 12px; background: #2b2b2b; padding: 20px; border-radius: 14px; }
+        input { padding: 16px; border: none; border-radius: 10px; font-size: 18px; width: 100%; }
+        button { border: none; border-radius: 12px; background: #c8102e; color: #fff; font-size: 20px; padding: 18px; cursor: pointer; }
+        a.pular { display: block; text-align: center; color: #90caf9; margin-top: 16px; }
+        #mensagem { display: none; padding: 12px; border-radius: 8px; margin-bottom: 14px; background: #b71c1c; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="caixa">
+    <h1>BOCCA PRIME</h1>
+    <p class="sub">Primeiro, nos conte quem você é</p>
+
+    <div id="mensagem"></div>
+
+    <form id="formCliente">
+        <input type="text" id="nome" placeholder="Nome" maxlength="100">
+        <input type="text" id="cpf" placeholder="CPF (somente números)" maxlength="14">
+        <input type="text" id="telefone" placeholder="Telefone" maxlength="20">
+        <input type="email" id="email" placeholder="E-mail" maxlength="100">
+        <button type="submit">Continuar para o pedido</button>
+    </form>
+    <a class="pular" href="totem.html" onclick="sessionStorage.clear()">Pedir sem cadastro</a>
+    <a class="pular" href="admin-pedidos.html" style="opacity:.7">Área do operador</a>
+</div>
+
+<script>
+    const URL_API = "http://localhost:8080";
+
+    function mostrarErro(texto) {
+        const el = document.getElementById("mensagem");
+        el.textContent = texto;
+        el.style.display = "block";
+        setTimeout(() => { el.style.display = "none"; }, 5000);
+    }
+
+    function digitos(valor) {
+        return (valor || "").replace(/\D/g, "");
+    }
+
+    function entrar(cliente) {
+        sessionStorage.setItem("clienteNome", cliente.nome);
+        sessionStorage.removeItem("pedidoId");
+        location.href = "totem.html";
+    }
+
+    document.getElementById("formCliente").addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const dados = {
+            nome: document.getElementById("nome").value,
+            cpf: document.getElementById("cpf").value,
+            telefone: document.getElementById("telefone").value,
+            email: document.getElementById("email").value
+        };
+
+        try {
+            const resposta = await fetch(`${URL_API}/clientes`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(dados)
+            });
+            if (resposta.ok) {
+                entrar(await resposta.json());
+                return;
+            }
+
+            const erro = (await resposta.json()).erro || "Erro inesperado.";
+
+            // CPF já cadastrado: entra com o cliente que já existe
+            if (erro.startsWith("Já existe um cliente")) {
+                const lista = await (await fetch(`${URL_API}/clientes`)).json();
+                const achado = lista.find(c => digitos(c.cpf) === digitos(dados.cpf));
+                if (achado) {
+                    entrar(achado);
+                    return;
+                }
+            }
+            mostrarErro(erro);
+        } catch (e) {
+            mostrarErro("Servidor indisponível. Verifique se o Java está rodando.");
+        }
+    });
+</script>
+</body>
+</html>

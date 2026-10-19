@@ -118,6 +118,7 @@
         <div class="senha" id="numeroSenha"></div>
         <div class="resumo" id="resumoPedido"></div>
         <div class="acoes" style="margin-top:20px">
+           <a href="acompanhar.html" style="display:block;text-decoration:none;text-align:center;background:#1e88e5;color:#fff;border-radius:14px;font-size:24px;padding:22px;">Acompanhar meu pedido</a>
             <button id="btnNovoPedido" class="ok">Fazer novo pedido</button>
         </div>
         <p class="sub-titulo" style="margin-top:14px">Esta tela volta ao início sozinha.</p>
@@ -407,6 +408,7 @@
 
     function mostrarSenha(pedido) {
         document.getElementById("numeroSenha").textContent = pedido.numeroSenha;
+        sessionStorage.setItem("pedidoId", pedido.id);
 
         const itens = pedido.itens.map(i => `
             <div><span>${i.quantidade}x ${escaparHtml(i.produtoNome)}</span>
